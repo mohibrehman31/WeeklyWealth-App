@@ -49,6 +49,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { format, subDays, startOfMonth, endOfMonth, isWithinInterval, startOfWeek, endOfWeek, differenceInWeeks } from 'date-fns';
 import { User, Transaction, Budget, Goal, Debt, MealPlan, GroceryPrice, Family, Ingredient, BankAccount } from './types';
+import { api } from './api';
 
 // --- Mock Data & Constants ---
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
@@ -111,7 +112,7 @@ export default function App() {
     };
 
     try {
-      const res = await fetch('/api/goals', {
+      const res = await api('/api/goals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(goalData)
@@ -133,7 +134,7 @@ export default function App() {
     if (!user || !confirm("Are you sure you want to delete this goal?")) return;
 
     try {
-      const res = await fetch(`/api/goals/${id}`, { method: 'DELETE' });
+      const res = await api(`/api/goals/${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchAppData(user.family_id);
       }
@@ -155,7 +156,7 @@ export default function App() {
     };
 
     try {
-      const res = await fetch('/api/goals', {
+      const res = await api('/api/goals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedGoal)
@@ -204,7 +205,7 @@ export default function App() {
     };
 
     try {
-      const res = await fetch('/api/debts', {
+      const res = await api('/api/debts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(debtData)
@@ -236,7 +237,7 @@ export default function App() {
     if (!user || !confirm("Are you sure you want to delete this debt?")) return;
 
     try {
-      const res = await fetch(`/api/debts/${id}`, { method: 'DELETE' });
+      const res = await api(`/api/debts/${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchAppData(user.family_id);
       }
@@ -266,7 +267,7 @@ export default function App() {
     };
 
     try {
-      const res = await fetch('/api/meal-plans', {
+      const res = await api('/api/meal-plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(mealData)
@@ -295,7 +296,7 @@ export default function App() {
     if (!user || !confirm("Are you sure you want to delete this meal?")) return;
 
     try {
-      const res = await fetch(`/api/meal-plans/${id}`, { method: 'DELETE' });
+      const res = await api(`/api/meal-plans/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setIsEditingMeal(false);
         setEditingMeal(null);
@@ -413,14 +414,14 @@ export default function App() {
     setLoading(true);
     try {
       const [tRes, bRes, gRes, dRes, mRes, fRes, baRes, fmRes] = await Promise.all([
-        fetch(`/api/transactions/${familyId}`),
-        fetch(`/api/budgets/${familyId}`),
-        fetch(`/api/goals/${familyId}`),
-        fetch(`/api/debts/${familyId}`),
-        fetch(`/api/meal-plans/${familyId}`),
-        fetch(`/api/families/${familyId}`),
-        fetch(`/api/bank-accounts/${familyId}`),
-        fetch(`/api/family/members/${familyId}`)
+        api(`/api/transactions/${familyId}`),
+        api(`/api/budgets/${familyId}`),
+        api(`/api/goals/${familyId}`),
+        api(`/api/debts/${familyId}`),
+        api(`/api/meal-plans/${familyId}`),
+        api(`/api/families/${familyId}`),
+        api(`/api/bank-accounts/${familyId}`),
+        api(`/api/family/members/${familyId}`)
       ]);
 
       const results = await Promise.all([
@@ -451,7 +452,7 @@ export default function App() {
 
   const handleLogin = async (email: string) => {
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await api('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -468,7 +469,7 @@ export default function App() {
 
   const handleSignup = async (email: string, name: string) => {
     try {
-      const res = await fetch('/api/auth/signup', {
+      const res = await api('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name })
@@ -493,7 +494,7 @@ export default function App() {
     if (!user) return;
     setIsConnectingBank(true);
     try {
-      const res = await fetch('/api/bank/connect', {
+      const res = await api('/api/bank/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id })
@@ -518,7 +519,7 @@ export default function App() {
     console.log("Disconnecting bank for user:", user.id);
     
     try {
-      const res = await fetch('/api/bank/disconnect', {
+      const res = await api('/api/bank/disconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id })
@@ -539,7 +540,7 @@ export default function App() {
   const handleSyncTransactions = async () => {
     if (!user) return;
     try {
-      const res = await fetch('/api/bank/sync', {
+      const res = await api('/api/bank/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, familyId: user.family_id })
@@ -558,7 +559,7 @@ export default function App() {
   const handleInviteMember = async (email: string, name: string) => {
     if (!user) return;
     try {
-      const res = await fetch('/api/family/invite', {
+      const res = await api('/api/family/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name, familyId: user.family_id })
@@ -593,7 +594,7 @@ export default function App() {
 
   const handleManualCategorize = async (transactionId: string, category: string) => {
     try {
-      const res = await fetch('/api/transactions/categorize', {
+      const res = await api('/api/transactions/categorize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transactionId, category })
@@ -1833,7 +1834,7 @@ function TransactionsView({ transactions, setTransactions, user, onSync }: { tra
       status: 'confirmed'
     };
 
-    await fetch('/api/transactions', {
+    await api('/api/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tx)
@@ -2093,7 +2094,7 @@ function BudgetsView({ budgets, setBudgets, transactions, setTransactions, famil
   const handleSaveIncome = async () => {
     if (!family) return;
     const income = parseFloat(tempIncome);
-    await fetch('/api/families/income', {
+    await api('/api/families/income', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ familyId: family.id, income })
@@ -2115,7 +2116,7 @@ function BudgetsView({ budgets, setBudgets, transactions, setTransactions, famil
       week_start: activeWeekKey
     };
 
-    await fetch('/api/budgets', {
+    await api('/api/budgets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newBudget)
@@ -2131,7 +2132,7 @@ function BudgetsView({ budgets, setBudgets, transactions, setTransactions, famil
   };
 
   const handleDeleteBudget = async (id: string) => {
-    await fetch(`/api/budgets/${id}`, { method: 'DELETE' });
+    await api(`/api/budgets/${id}`, { method: 'DELETE' });
     setBudgets(budgets.filter(b => b.id !== id));
     setIsEditingBudget(null);
   };
@@ -2491,7 +2492,7 @@ function BudgetsView({ budgets, setBudgets, transactions, setTransactions, famil
                               value={t.category}
                               onChange={async (e) => {
                                 const newCat = e.target.value;
-                                await fetch('/api/transactions/categorize', {
+                                await api('/api/transactions/categorize', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ transactionId: t.id, category: newCat })
@@ -3380,7 +3381,7 @@ function SettingsView({ user, onUpdateUser }: { user: User | null, onUpdateUser:
     if (!user) return;
     setIsSaving(true);
     try {
-      const res = await fetch('/api/user/settings', {
+      const res = await api('/api/user/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3515,7 +3516,7 @@ function OnboardingView({ user, onComplete }: { user: User, onComplete: (user: U
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/onboarding', {
+      const res = await api('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

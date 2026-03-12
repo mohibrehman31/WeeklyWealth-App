@@ -23,7 +23,6 @@ RUN npm install --production
 # Copy built assets and server code
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.ts ./
-COPY --from=builder /app/types.ts ./
 COPY --from=builder /app/package.json ./
 
 # Install tsx to run the server

@@ -7,6 +7,15 @@ import fs from "fs";
 
 dotenv.config();
 
+// CORS for Vercel frontend when deployed separately
+const cors = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  res.setHeader("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+};
+
 // For Cloud Run, use a persistent volume if available, otherwise fallback to local
 const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "budget.db");
 const dbDir = path.dirname(dbPath);
@@ -159,8 +168,9 @@ try {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
+  app.use(cors);
   app.use(express.json());
 
   // API Routes
