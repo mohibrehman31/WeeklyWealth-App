@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Receipt, 
@@ -50,14 +50,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format, subDays, startOfMonth, endOfMonth, isWithinInterval, startOfWeek, endOfWeek, differenceInWeeks } from 'date-fns';
 import { User, Transaction, Budget, Goal, Debt, MealPlan, GroceryPrice, Family, Ingredient, BankAccount } from './types';
 import { api } from './api';
-
-// --- Mock Data & Constants ---
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-const COLORS = ['#FF85A1', '#BDE0FE', '#FFD6A5', '#FDFFB6', '#CAFFBF', '#D0D1FF', '#FFADAD', '#9BF6FF'];
-
-const CATEGORIES = [
-  'Housing', 'Food', 'Transport', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Other'
-];
+import { CATEGORIES, COLORS } from '../shared/constants';
+import { generateId } from '../shared/id';
 
 // --- Components ---
 
@@ -82,7 +76,9 @@ const ProgressBar = ({ current, target, color = "bg-primary" }: { current: numbe
 // --- Main App ---
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab = location.pathname.slice(1) || 'dashboard';
   const [user, setUser] = useState<User | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -106,7 +102,7 @@ export default function App() {
     if (!user || !goalForm.name || goalForm.target_amount <= 0) return;
 
     const goalData = {
-      id: editingGoal?.id || Math.random().toString(36).substr(2, 9),
+      id: editingGoal?.id || generateId(),
       family_id: user.family_id,
       ...goalForm
     };
@@ -199,7 +195,7 @@ export default function App() {
     if (!user || !debtForm.name || debtForm.total_amount <= 0) return;
 
     const debtData = {
-      id: editingDebt?.id || Math.random().toString(36).substr(2, 9),
+      id: editingDebt?.id || generateId(),
       family_id: user.family_id,
       ...debtForm
     };
@@ -261,7 +257,7 @@ export default function App() {
     if (!user || !mealForm.recipe_name) return;
 
     const mealData = {
-      id: editingMeal?.id || Math.random().toString(36).substr(2, 9),
+      id: editingMeal?.id || generateId(),
       family_id: user.family_id,
       ...mealForm
     };
@@ -311,34 +307,12 @@ export default function App() {
     if (!url) return;
     setLoading(true);
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Extract recipe details from this URL: ${url}. Return the recipe name and a list of ingredients with amounts and units.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              recipe_name: { type: Type.STRING },
-              ingredients: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    amount: { type: Type.STRING },
-                    unit: { type: Type.STRING }
-                  },
-                  required: ["name", "amount", "unit"]
-                }
-              }
-            },
-            required: ["recipe_name", "ingredients"]
-          }
-        }
+      const res = await api('/api/ai/recipe-from-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
       });
-
-      const data = JSON.parse(response.text || '{}');
+      const data = res.ok ? await res.json() : {};
       setMealForm(prev => ({
         ...prev,
         recipe_name: data.recipe_name || prev.recipe_name,
@@ -354,25 +328,8 @@ export default function App() {
   const handleGenerateAIIdeas = async () => {
     setLoading(true);
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: "Generate 5 healthy dinner ideas for a family. Return the recipe names and a brief description for each.",
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                description: { type: Type.STRING }
-              },
-              required: ["name", "description"]
-            }
-          }
-        }
-      });
-      return JSON.parse(response.text || '[]');
+      const res = await api('/api/ai/meal-ideas', { method: 'POST' });
+      return res.ok ? await res.json() : [];
     } catch (e) {
       console.error("Failed to generate AI ideas", e);
       return [];
@@ -487,7 +444,7 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('weeklywealth_user');
-    setActiveTab('dashboard');
+    navigate('/dashboard');
   };
 
   const handleConnectBank = async () => {
@@ -575,15 +532,14 @@ export default function App() {
   const autoCategorizeTransactions = async (pending: Transaction[]) => {
     for (const t of pending) {
       try {
-        const aiResponse = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: `Categorize this bank transaction: "${t.description}". 
-          Valid categories: ${CATEGORIES.join(', ')}. 
-          Return ONLY the category name. If unsure, return "Uncategorized".`,
+        const res = await api('/api/ai/categorize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: t.description })
         });
-        
-        const category = aiResponse.text?.trim() || "Uncategorized";
-        if (category !== "Uncategorized" && CATEGORIES.includes(category)) {
+        const data = res.ok ? await res.json() : {};
+        const category = data.category || "Other";
+        if (CATEGORIES.includes(category as any)) {
           await handleManualCategorize(t.id, category);
         }
       } catch (e) {
@@ -711,7 +667,7 @@ export default function App() {
                 budgets={budgets} 
                 goals={goals} 
                 bankAccounts={bankAccounts}
-                onViewAllTransactions={() => setActiveTab('transactions')}
+                onViewAllTransactions={() => navigate('/transactions')}
                 onAddGoal={() => {
                   setGoalForm({ name: '', target_amount: 0, current_amount: 0, deadline: format(new Date(), 'yyyy-MM-dd') });
                   setIsAddingGoal(true);
@@ -822,7 +778,7 @@ export default function App() {
                 budgets={budgets} 
                 goals={goals} 
                 bankAccounts={bankAccounts}
-                onViewAllTransactions={() => setActiveTab('transactions')}
+                onViewAllTransactions={() => navigate('/transactions')}
                 onAddGoal={() => {
                   setGoalForm({ name: '', target_amount: 0, current_amount: 0, deadline: format(new Date(), 'yyyy-MM-dd') });
                   setIsAddingGoal(true);
@@ -839,7 +795,7 @@ export default function App() {
     if (id === 'logout') {
       handleLogout();
     } else {
-      setActiveTab(id);
+      navigate(`/${id}`);
     }
     setIsMobileMenuOpen(false);
   };
@@ -1823,7 +1779,7 @@ function TransactionsView({ transactions, setTransactions, user, onSync }: { tra
   const handleAdd = async () => {
     if (!user) return;
     const tx: Transaction = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       user_id: user.id,
       amount: parseFloat(newTx.amount),
       description: newTx.description,
@@ -2069,14 +2025,16 @@ function BudgetsView({ budgets, setBudgets, transactions, setTransactions, famil
   const generateTips = async () => {
     setIsGeneratingTips(true);
     try {
-      const prompt = `As a financial advisor, give 3 short, actionable savings tips for a family with a weekly income of $${family?.weekly_income} and the following weekly budget: ${weekBudgets.map(b => `${b.category}: $${b.limit_amount}`).join(', ')}. Format as a simple list of 3 items.`;
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
+      const res = await api('/api/ai/savings-tips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          weeklyIncome: family?.weekly_income,
+          budgetSummary: weekBudgets.map(b => `${b.category}: $${b.limit_amount}`).join(', ')
+        })
       });
-      const text = result.text || "";
-      const tips = text.split('\n').filter(t => t.trim().length > 0).slice(0, 3);
-      setAiTips(tips);
+      const data = res.ok ? await res.json() : {};
+      setAiTips(data.tips || []);
     } catch (e) {
       console.error("AI Tips failed", e);
       setAiTips(["Try reducing dining out this week.", "Check for unused subscriptions.", "Look for generic brand alternatives at the grocery store."]);
@@ -2105,7 +2063,7 @@ function BudgetsView({ budgets, setBudgets, transactions, setTransactions, famil
 
   const handleSaveBudget = async () => {
     if (!family) return;
-    const budgetId = isEditingBudget?.id || Math.random().toString(36).substr(2, 9);
+    const budgetId = isEditingBudget?.id || generateId();
     const newBudget = {
       id: budgetId,
       family_id: family.id,
