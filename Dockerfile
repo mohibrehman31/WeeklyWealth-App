@@ -11,19 +11,18 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-# Production stage
-FROM node:20-slim
+# Production stage - use full node image for better native module compatibility
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Install production dependencies only
-COPY package*.json ./
-RUN npm install --production
+# Copy node_modules from builder (avoids recompiling better-sqlite3)
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
 
 # Copy built assets and server code
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.ts ./
-COPY --from=builder /app/package.json ./
 
 # Install tsx to run the server
 RUN npm install -g tsx
