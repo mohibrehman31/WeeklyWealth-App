@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server/index.ts",
+    "start": "tsx server/index.ts",
     "build": "vite build",
     "preview": "tsx server/index.ts",
     "clean": "rm -rf dist",
